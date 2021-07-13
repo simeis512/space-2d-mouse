@@ -1,0 +1,16 @@
+{
+  "name": "space2dmouse",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js"
+  },
+  "author": "simeis512",
+  "license": "ISC",
+  "dependencies": {
+    "node-hid": "^2.1.1",
+    "robotjs": "^0.6.0"
+  }
+}
