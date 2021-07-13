@@ -8,7 +8,7 @@
     "start": "node index.js"
   },
   "author": "simeis512",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "node-hid": "^2.1.1",
     "robotjs": "^0.6.0"
