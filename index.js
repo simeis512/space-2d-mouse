@@ -6,12 +6,14 @@ const devices = HID.devices()
 const PRODUCT_ID = 50770
 
 const MAX_VALUE = 350.0;
-const SPEED = 50
+const SPEED = 50.0
 
-const PRESS_THRESHOLD = 0.4
+const PRESS_THRESHOLD = 0.3
 const RELEASE_THRESHOLD = 0.2
 
 const spaceMouses = devices.filter(d=>d.productId === PRODUCT_ID)
+
+const decimal = { x: 0.0, y: 0.0 }
 
 let isLeftDown = false
 let isRightDown = false
@@ -34,10 +36,21 @@ spaceMouses.forEach((spaceMouse) => {
 
       // Move
       const mouse = robot.getMousePos()
-      const moveX = -Math.pow(direction.role, 2) * SPEED * Math.sign(direction.role)
-      const moveY = Math.pow(direction.pitch, 2) * SPEED * Math.sign(direction.pitch)
-      robot.moveMouse(mouse.x + moveX + 1, mouse.y + moveY + 1)
-      // console.log(`x: ${moveX}, y: ${moveY}`)
+      const move = {
+        x: -Math.pow(direction.role, 2) * SPEED * Math.sign(direction.role),
+        y: Math.pow(direction.pitch, 2) * SPEED * Math.sign(direction.pitch)
+      }
+      const integer = { x: 0, y: 0 }
+      Array('x', 'y').forEach((v) => {
+        decimal[v] += move[v] % 1.0
+        integer[v] = decimal[v] - decimal[v] % 1.0
+        decimal[v] = decimal[v] % 1.0
+      })
+      robot.moveMouse(
+        mouse.x + move.x + integer.x + 1,
+        mouse.y + move.y + integer.y + 1
+      )
+      // console.log(`x: ${move.x}, y: ${move.y}`)
 
       // Left click
       if (isLeftDown) {
