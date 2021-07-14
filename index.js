@@ -11,12 +11,17 @@ const SPEED = 100.0
 const PUSH_THRESHOLD = 0.3
 const PUSH_RELEASE_THRESHOLD = 0.2
 
+const PULL_THRESHOLD = -0.9
+const PULL_RELEASE_THRESHOLD = -0.6
+
 const spaceMouses = devices.filter(d=>d.productId === PRODUCT_ID)
 
 const decimal = { x: 0.0, y: 0.0 }
 
 let isPushDown = false
 let isStable = false
+
+let isPullUp = false
 
 let isLeftBurronDown = false
 let isRightBurronDown = false
@@ -58,6 +63,9 @@ spaceMouses.forEach((spaceMouse) => {
         // console.log(`x: ${move.x}, y: ${move.y}`)
       }
 
+      // Scroll
+      //robot.scrollMouse(0, direction.yaw * 10);
+
       // Left click
       if (isPushDown) {
         if (direction.z <= PUSH_RELEASE_THRESHOLD) {
@@ -71,6 +79,20 @@ spaceMouses.forEach((spaceMouse) => {
           isPushDown = true
           isStable = true
           setTimeout(() => isStable = false, 200)
+          // console.log('left down')
+        }
+      }
+
+      // F5
+      if (isPullUp) {
+        if (direction.z >= PULL_RELEASE_THRESHOLD) {
+          robot.keyTap('f5')
+          isPullUp = false
+          // console.log('left up')
+        }
+      } else {
+        if (direction.z <= PULL_THRESHOLD) {
+          isPullUp = true
           // console.log('left down')
         }
       }
