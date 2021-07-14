@@ -6,7 +6,7 @@ const devices = HID.devices()
 const PRODUCT_ID = 50770
 
 const MAX_VALUE = 350.0;
-const SPEED = 50.0
+const SPEED = 100.0
 
 const PRESS_THRESHOLD = 0.3
 const RELEASE_THRESHOLD = 0.2
@@ -17,6 +17,7 @@ const decimal = { x: 0.0, y: 0.0 }
 
 let isLeftDown = false
 let isRightDown = false
+let isStable = false
 
 spaceMouses.forEach((spaceMouse) => {
   const device = new HID.HID(spaceMouse.path)
@@ -35,22 +36,24 @@ spaceMouses.forEach((spaceMouse) => {
       // console.log(direction)
 
       // Move
-      const mouse = robot.getMousePos()
-      const move = {
-        x: -Math.pow(direction.role, 2) * SPEED * Math.sign(direction.role),
-        y: Math.pow(direction.pitch, 2) * SPEED * Math.sign(direction.pitch)
+      if (!isStable) {
+        const mouse = robot.getMousePos()
+        const move = {
+          x: -Math.pow(direction.role, 3) * SPEED,
+          y: Math.pow(direction.pitch, 3) * SPEED
+        }
+        const integer = { x: 0, y: 0 }
+        Array('x', 'y').forEach((v) => {
+          decimal[v] += move[v] % 1.0
+          integer[v] = decimal[v] - decimal[v] % 1.0
+          decimal[v] = decimal[v] % 1.0
+        })
+        robot.moveMouse(
+          mouse.x + move.x + integer.x + 1,
+          mouse.y + move.y + integer.y + 1
+        )
+        // console.log(`x: ${move.x}, y: ${move.y}`)
       }
-      const integer = { x: 0, y: 0 }
-      Array('x', 'y').forEach((v) => {
-        decimal[v] += move[v] % 1.0
-        integer[v] = decimal[v] - decimal[v] % 1.0
-        decimal[v] = decimal[v] % 1.0
-      })
-      robot.moveMouse(
-        mouse.x + move.x + integer.x + 1,
-        mouse.y + move.y + integer.y + 1
-      )
-      // console.log(`x: ${move.x}, y: ${move.y}`)
 
       // Left click
       if (isLeftDown) {
@@ -63,6 +66,8 @@ spaceMouses.forEach((spaceMouse) => {
         if (direction.z >= PRESS_THRESHOLD) {
           robot.mouseToggle('down')
           isLeftDown = true
+          isStable = true
+          setTimeout(() => isStable = false, 200)
           // console.log('left down')
         }
       }
