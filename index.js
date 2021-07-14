@@ -10,9 +10,14 @@ const SPEED = 100.0
 
 const PUSH_THRESHOLD = 0.3
 const PUSH_RELEASE_THRESHOLD = 0.2
+const PUSH_STABLE_DURATION = 200
 
 const PULL_THRESHOLD = -0.9
 const PULL_RELEASE_THRESHOLD = -0.6
+
+const SLIDE_THRESHOLD = 0.7
+const SLIDE_RELEASE_THRESHOLD = 0.7
+const SLIDE_HOLD_DURATION = 300
 
 const spaceMouses = devices.filter(d=>d.productId === PRODUCT_ID)
 
@@ -22,6 +27,74 @@ let isPushDown = false
 let isStable = false
 
 let isPullUp = false
+
+const slideStatus = {
+  left: {
+    isSliding: false,
+    isHolded: false,
+    holdTimeout: null,
+    axis: '-x',
+  },
+  top: {
+    isSliding: false,
+    isHolded: false,
+    holdTimeout: null,
+    axis: '-y',
+  },
+  right: {
+    isSliding: false,
+    isHolded: false,
+    holdTimeout: null,
+    axis: 'x',
+  },
+  bottom: {
+    isSliding: false,
+    isHolded: false,
+    holdTimeout: null,
+    axis: 'y',
+  },
+}
+
+const slideKeys = {
+  left: {
+    pulse: {
+      key: 'left',
+      modifier: 'alt',
+    },
+    hold: {
+      key: 'pageup',
+      modifier: 'control',
+    }
+  },
+  top: {
+    pulse: {
+      key: 'pageup',
+    },
+    hold: {
+      key: 't',
+      modifier: ['control', 'shift'],
+    }
+  },
+  right: {
+    pulse: {
+      key: 'right',
+      modifier: 'alt',
+    },
+    hold: {
+      key: 'pagedown',
+      modifier: 'control',
+    }
+  },
+  bottom: {
+    pulse: {
+      key: 'pagedown',
+    },
+    hold: {
+      key: 'w',
+      modifier: 'control',
+    }
+  },
+}
 
 let isLeftBurronDown = false
 let isRightBurronDown = false
@@ -43,8 +116,41 @@ spaceMouses.forEach((spaceMouse) => {
       }
       // console.log(direction)
 
+      // slide
+      Array('left', 'top', 'right', 'bottom').forEach((dir) => {
+        const sign = slideStatus[dir].axis.includes('-') ? -1 : 1
+        const axis = slideStatus[dir].axis.slice(-1)
+        if (slideStatus[dir].isSliding) {
+          if (direction[axis] * sign <= SLIDE_RELEASE_THRESHOLD) {
+            if (!slideStatus[dir].isHolded) {
+              clearTimeout(slideStatus[dir].holdTimeout)
+              if (!slideKeys[dir].pulse.modifier) {
+                robot.keyTap(slideKeys[dir].pulse.key)
+              } else {
+                robot.keyTap(slideKeys[dir].pulse.key, slideKeys[dir].pulse.modifier)
+              }
+              // console.log('slide ${dir}: ${slideKeys[dir].pulse.key} ${slideKeys[dir].pulse.modifier})
+            }
+            slideStatus[dir].isSliding = false
+          }
+        } else {
+          if (direction[axis] * sign >= SLIDE_THRESHOLD) {
+            slideStatus[dir].isSliding = true
+            slideStatus[dir].isHolded = false
+            clearTimeout(slideStatus[dir].holdTimeout)
+            slideStatus[dir].holdTimeout = setTimeout(() => {
+              robot.keyTap(slideKeys[dir].hold.key, slideKeys[dir].hold.modifier ?? null)
+              slideStatus[dir].isHolded = true
+              // console.log('hold ${dir}: ${slideKeys[dir].hold.key} ${slideKeys[dir].hold.modifier})
+            }, SLIDE_HOLD_DURATION)
+          }
+        }  
+      })
+
+      const isSliding = Array('left', 'top', 'right', 'bottom').some((dir) => slideStatus[dir].isSliding)
+
       // Move
-      if (!isStable) {
+      if (!isStable && !isSliding) {
         const mouse = robot.getMousePos()
         const move = {
           x: -Math.pow(direction.role, 3) * SPEED,
@@ -63,9 +169,6 @@ spaceMouses.forEach((spaceMouse) => {
         // console.log(`x: ${move.x}, y: ${move.y}`)
       }
 
-      // Scroll
-      //robot.scrollMouse(0, direction.yaw * 10);
-
       // Left click
       if (isPushDown) {
         if (direction.z <= PUSH_RELEASE_THRESHOLD) {
@@ -74,11 +177,11 @@ spaceMouses.forEach((spaceMouse) => {
           // console.log('left up')
         }
       } else {
-        if (direction.z >= PUSH_THRESHOLD) {
+        if (direction.z >= PUSH_THRESHOLD && !isSliding) {
           robot.mouseToggle('down')
           isPushDown = true
           isStable = true
-          setTimeout(() => isStable = false, 200)
+          setTimeout(() => isStable = false, PUSH_STABLE_DURATION)
           // console.log('left down')
         }
       }
