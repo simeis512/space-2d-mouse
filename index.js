@@ -8,16 +8,19 @@ const PRODUCT_ID = 50770
 const MAX_VALUE = 350.0;
 const SPEED = 100.0
 
-const PRESS_THRESHOLD = 0.3
-const RELEASE_THRESHOLD = 0.2
+const PUSH_THRESHOLD = 0.3
+const PUSH_RELEASE_THRESHOLD = 0.2
 
 const spaceMouses = devices.filter(d=>d.productId === PRODUCT_ID)
 
 const decimal = { x: 0.0, y: 0.0 }
 
-let isLeftDown = false
-let isRightDown = false
+let isPushDown = false
 let isStable = false
+
+let isLeftBurronDown = false
+let isRightBurronDown = false
+
 
 spaceMouses.forEach((spaceMouse) => {
   const device = new HID.HID(spaceMouse.path)
@@ -56,16 +59,16 @@ spaceMouses.forEach((spaceMouse) => {
       }
 
       // Left click
-      if (isLeftDown) {
-        if (direction.z <= RELEASE_THRESHOLD) {
+      if (isPushDown) {
+        if (direction.z <= PUSH_RELEASE_THRESHOLD) {
           robot.mouseToggle('up')
-          isLeftDown = false
+          isPushDown = false
           // console.log('left up')
         }
       } else {
-        if (direction.z >= PRESS_THRESHOLD) {
+        if (direction.z >= PUSH_THRESHOLD) {
           robot.mouseToggle('down')
-          isLeftDown = true
+          isPushDown = true
           isStable = true
           setTimeout(() => isStable = false, 200)
           // console.log('left down')
@@ -74,21 +77,31 @@ spaceMouses.forEach((spaceMouse) => {
     } else if (data.readInt8(0) == 3) {
       const button = ['release', 'left', 'right'][data.readInt8(1)] ?? 'none'
       // console.log(button)
-      if (isRightDown) {
+      if (isLeftBurronDown) {
+        if (button === 'release') {
+          robot.mouseToggle('up', 'middle')
+          isLeftBurronDown = false
+          // console.log('middle up')
+        }
+      } else {
+        if (button === 'left') {
+          robot.mouseToggle('down', 'middle')
+          isLeftBurronDown = true
+          // console.log('middle down')
+        }
+      }
+      if (isRightBurronDown) {
         if (button === 'release') {
           robot.mouseToggle('up', 'right')
-          isRightDown = false
+          isRightBurronDown = false
           // console.log('right up')
         }
       } else {
         if (button === 'right') {
           robot.mouseToggle('down', 'right')
-          isRightDown = true
+          isRightBurronDown = true
           // console.log('right down')
         }
-      }
-      if (button === 'left') {
-        robot.mouseClick('middle')
       }
     }
   })
