@@ -6,7 +6,8 @@ const devices = HID.devices()
 const PRODUCT_ID = 50770
 
 const MAX_VALUE = 350.0;
-const SPEED = 100.0
+
+const MOUSE_SPEED = 100.0
 
 const PUSH_THRESHOLD = 0.3
 const PUSH_RELEASE_THRESHOLD = 0.2
@@ -18,6 +19,9 @@ const PULL_RELEASE_THRESHOLD = -0.6
 const SLIDE_THRESHOLD = 0.7
 const SLIDE_RELEASE_THRESHOLD = 0.7
 const SLIDE_HOLD_DURATION = 300
+
+const SCROLL_THRESHOLD = 0.2
+const SCROLL_SPEED = 200.0
 
 const spaceMouses = devices.filter(d=>d.productId === PRODUCT_ID)
 
@@ -116,6 +120,12 @@ spaceMouses.forEach((spaceMouse) => {
       }
       // console.log(direction)
 
+      // Scroll
+      const isScrolling = Math.abs(direction.yaw) >= SCROLL_THRESHOLD
+      if (isScrolling) {
+        robot.scrollMouse(0, -Math.pow(direction.yaw, 3) * SCROLL_SPEED);
+      }
+
       // slide
       Array('left', 'top', 'right', 'bottom').forEach((dir) => {
         const sign = slideStatus[dir].axis.includes('-') ? -1 : 1
@@ -134,7 +144,7 @@ spaceMouses.forEach((spaceMouse) => {
             slideStatus[dir].isSliding = false
           }
         } else {
-          if (direction[axis] * sign >= SLIDE_THRESHOLD) {
+          if (direction[axis] * sign >= SLIDE_THRESHOLD && !isScrolling) {
             slideStatus[dir].isSliding = true
             slideStatus[dir].isHolded = false
             clearTimeout(slideStatus[dir].holdTimeout)
@@ -150,11 +160,11 @@ spaceMouses.forEach((spaceMouse) => {
       const isSliding = Array('left', 'top', 'right', 'bottom').some((dir) => slideStatus[dir].isSliding)
 
       // Move
-      if (!isStable && !isSliding) {
+      if (!isStable && !isScrolling && !isSliding) {
         const mouse = robot.getMousePos()
         const move = {
-          x: -Math.pow(direction.role, 3) * SPEED,
-          y: Math.pow(direction.pitch, 3) * SPEED
+          x: -Math.pow(direction.role, 3) * MOUSE_SPEED,
+          y: Math.pow(direction.pitch, 3) * MOUSE_SPEED
         }
         const integer = { x: 0, y: 0 }
         Array('x', 'y').forEach((v) => {
@@ -177,7 +187,7 @@ spaceMouses.forEach((spaceMouse) => {
           // console.log('left up')
         }
       } else {
-        if (direction.z >= PUSH_THRESHOLD && !isSliding) {
+        if (direction.z >= PUSH_THRESHOLD && !isScrolling && !isSliding) {
           robot.mouseToggle('down')
           isPushDown = true
           isStable = true
@@ -194,7 +204,7 @@ spaceMouses.forEach((spaceMouse) => {
           // console.log('left up')
         }
       } else {
-        if (direction.z <= PULL_THRESHOLD) {
+        if (direction.z <= PULL_THRESHOLD && !isScrolling && !isSliding) {
           isPullUp = true
           // console.log('left down')
         }
