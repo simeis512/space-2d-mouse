@@ -18,7 +18,7 @@ const PULL_RELEASE_THRESHOLD = -0.6
 
 const SLIDE_THRESHOLD = 0.7
 const SLIDE_RELEASE_THRESHOLD = 0.7
-const SLIDE_HOLD_DURATION = 300
+const SLIDE_HOLD_DURATION = 200
 
 const SCROLL_THRESHOLD = 0.2
 const SCROLL_SPEED = 200.0
@@ -120,12 +120,6 @@ spaceMouses.forEach((spaceMouse) => {
       }
       // console.log(direction)
 
-      // Scroll
-      const isScrolling = Math.abs(direction.yaw) >= SCROLL_THRESHOLD
-      if (isScrolling) {
-        robot.scrollMouse(0, -Math.pow(direction.yaw, 3) * SCROLL_SPEED);
-      }
-
       // slide
       Array('left', 'top', 'right', 'bottom').forEach((dir) => {
         const sign = slideStatus[dir].axis.includes('-') ? -1 : 1
@@ -144,12 +138,12 @@ spaceMouses.forEach((spaceMouse) => {
             slideStatus[dir].isSliding = false
           }
         } else {
-          if (direction[axis] * sign >= SLIDE_THRESHOLD && !isScrolling) {
+          if (direction[axis] * sign >= SLIDE_THRESHOLD) {
             slideStatus[dir].isSliding = true
             slideStatus[dir].isHolded = false
             clearTimeout(slideStatus[dir].holdTimeout)
             slideStatus[dir].holdTimeout = setTimeout(() => {
-              robot.keyTap(slideKeys[dir].hold.key, slideKeys[dir].hold.modifier ?? null)
+              robot.keyTap(slideKeys[dir].hold.key, slideKeys[dir].hold.modifier)
               slideStatus[dir].isHolded = true
               // console.log('hold ${dir}: ${slideKeys[dir].hold.key} ${slideKeys[dir].hold.modifier})
             }, SLIDE_HOLD_DURATION)
@@ -158,6 +152,12 @@ spaceMouses.forEach((spaceMouse) => {
       })
 
       const isSliding = Array('left', 'top', 'right', 'bottom').some((dir) => slideStatus[dir].isSliding)
+
+      // Scroll
+      const isScrolling = Math.abs(direction.yaw) >= SCROLL_THRESHOLD && !isSliding
+      if (isScrolling) {
+        robot.scrollMouse(0, -Math.pow(direction.yaw, 3) * SCROLL_SPEED);
+      }
 
       // Move
       if (!isStable && !isScrolling && !isSliding) {
