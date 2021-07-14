@@ -87,6 +87,9 @@ spaceMouses.forEach((spaceMouse) => {
           // console.log('right down')
         }
       }
+      if (button === 'left') {
+        robot.mouseClick('middle')
+      }
     }
   })
   device.on('error', (data) => console.log(data))
