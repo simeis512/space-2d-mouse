@@ -7,6 +7,7 @@ const PRODUCT_ID = 50770
 
 const MAX_VALUE = 350.0;
 
+const MOUSE_MOVE_THRESHOLD = 0.1
 const MOUSE_SPEED = 100.0
 
 const PUSH_THRESHOLD = 0.3
@@ -103,6 +104,14 @@ const slideKeys = {
 let isLeftBurronDown = false
 let isRightBurronDown = false
 
+let isSliding = false
+let isScrolling = false
+let isMouseMoving = false
+
+let isToolEnabled = true
+let isSpecialPulling = false
+let isSpecialRelease = true
+
 
 spaceMouses.forEach((spaceMouse) => {
   const device = new HID.HID(spaceMouse.path)
@@ -128,11 +137,7 @@ spaceMouses.forEach((spaceMouse) => {
           if (direction[axis] * sign <= SLIDE_RELEASE_THRESHOLD) {
             if (!slideStatus[dir].isHolded) {
               clearTimeout(slideStatus[dir].holdTimeout)
-              if (!slideKeys[dir].pulse.modifier) {
-                robot.keyTap(slideKeys[dir].pulse.key)
-              } else {
-                robot.keyTap(slideKeys[dir].pulse.key, slideKeys[dir].pulse.modifier)
-              }
+              keyTap(slideKeys[dir].pulse.key, slideKeys[dir].pulse.modifier)
               // console.log('slide ${dir}: ${slideKeys[dir].pulse.key} ${slideKeys[dir].pulse.modifier})
             }
             slideStatus[dir].isSliding = false
@@ -143,7 +148,7 @@ spaceMouses.forEach((spaceMouse) => {
             slideStatus[dir].isHolded = false
             clearTimeout(slideStatus[dir].holdTimeout)
             slideStatus[dir].holdTimeout = setTimeout(() => {
-              robot.keyTap(slideKeys[dir].hold.key, slideKeys[dir].hold.modifier)
+              keyTap(slideKeys[dir].hold.key, slideKeys[dir].hold.modifier)
               slideStatus[dir].isHolded = true
               // console.log('hold ${dir}: ${slideKeys[dir].hold.key} ${slideKeys[dir].hold.modifier})
             }, SLIDE_HOLD_DURATION)
@@ -151,17 +156,18 @@ spaceMouses.forEach((spaceMouse) => {
         }  
       })
 
-      const isSliding = Array('left', 'top', 'right', 'bottom').some((dir) => slideStatus[dir].isSliding)
+      isSliding = Array('left', 'top', 'right', 'bottom').some((dir) => slideStatus[dir].isSliding)
 
       // Scroll
-      const isScrolling = Math.abs(direction.yaw) >= SCROLL_THRESHOLD && !isSliding
-      if (isScrolling) {
-        robot.scrollMouse(0, -Math.pow(direction.yaw, 3) * SCROLL_SPEED);
+      if (!isMouseMoving) {
+        isScrolling = Math.abs(direction.yaw) >= SCROLL_THRESHOLD && !isSliding
+        if (isScrolling) {
+          scrollMouse(0, -Math.pow(direction.yaw, 3) * SCROLL_SPEED);
+        }
       }
 
       // Move
       if (!isStable && !isScrolling && !isSliding) {
-        const mouse = robot.getMousePos()
         const move = {
           x: -Math.pow(direction.role, 3) * MOUSE_SPEED,
           y: Math.pow(direction.pitch, 3) * MOUSE_SPEED
@@ -172,23 +178,25 @@ spaceMouses.forEach((spaceMouse) => {
           integer[v] = decimal[v] - decimal[v] % 1.0
           decimal[v] = decimal[v] % 1.0
         })
-        robot.moveMouse(
-          mouse.x + move.x + integer.x + 1,
-          mouse.y + move.y + integer.y + 1
+        moveMouse(
+          move.x + integer.x,
+          move.y + integer.y
         )
+        const d = direction.role * direction.role + direction.pitch * direction.pitch
+        isMouseMoving = d >= MOUSE_MOVE_THRESHOLD * MOUSE_MOVE_THRESHOLD
         // console.log(`x: ${move.x}, y: ${move.y}`)
       }
 
       // Left click
       if (isPushDown) {
         if (direction.z <= PUSH_RELEASE_THRESHOLD) {
-          robot.mouseToggle('up')
+          mouseToggle('up')
           isPushDown = false
           // console.log('left up')
         }
       } else {
         if (direction.z >= PUSH_THRESHOLD && !isScrolling && !isSliding) {
-          robot.mouseToggle('down')
+          mouseToggle('down')
           isPushDown = true
           isStable = true
           setTimeout(() => isStable = false, PUSH_STABLE_DURATION)
@@ -199,7 +207,7 @@ spaceMouses.forEach((spaceMouse) => {
       // F5
       if (isPullUp) {
         if (direction.z >= PULL_RELEASE_THRESHOLD) {
-          robot.keyTap('f5')
+          keyTap('f5')
           isPullUp = false
           // console.log('left up')
         }
@@ -210,35 +218,81 @@ spaceMouses.forEach((spaceMouse) => {
         }
       }
     } else if (data.readInt8(0) == 3) {
-      const button = ['release', 'left', 'right'][data.readInt8(1)] ?? 'none'
+      const leftBit = 0b01;
+      const rightBit = 0b10;
+      const button = data.readInt8(1)
       // console.log(button)
       if (isLeftBurronDown) {
-        if (button === 'release') {
-          robot.mouseToggle('up', 'middle')
+        if (!(button & leftBit)) {
+          mouseToggle('up', 'middle')
           isLeftBurronDown = false
           // console.log('middle up')
         }
       } else {
-        if (button === 'left') {
-          robot.mouseToggle('down', 'middle')
+        if (button & leftBit) {
+          mouseToggle('down', 'middle')
           isLeftBurronDown = true
           // console.log('middle down')
         }
       }
       if (isRightBurronDown) {
-        if (button === 'release') {
-          robot.mouseToggle('up', 'right')
+        if (!(button & rightBit)) {
+          mouseToggle('up', 'right')
           isRightBurronDown = false
           // console.log('right up')
         }
       } else {
-        if (button === 'right') {
-          robot.mouseToggle('down', 'right')
+        if (button & rightBit) {
+          mouseToggle('down', 'right')
           isRightBurronDown = true
           // console.log('right down')
         }
       }
     }
+
+    // console.log(isLeftBurronDown, isRightBurronDown, isPullUp)
+    if (isSpecialRelease && isLeftBurronDown && isRightBurronDown && isPullUp) {
+      isToolEnabled = !isToolEnabled
+      isSpecialPulling = true
+      isSpecialRelease = false
+    }
+    if (isSpecialPulling && !(isLeftBurronDown || isRightBurronDown || isPullUp)) {
+      isSpecialPulling = false
+      isSpecialRelease = true
+    }
+    // console.log(`enabled: ${isToolEnabled}, pulling: ${isSpecialPulling}, release: ${isSpecialRelease}`)
   })
   device.on('error', (data) => console.log(data))
 })
+
+function moveMouse(moveX, moveY) {
+  if (!isToolEnabled || isSpecialPulling) return
+  const mouse = robot.getMousePos()
+  robot.moveMouse(
+    mouse.x + moveX + 1,
+    mouse.y + moveY + 1
+  )
+}
+
+function mouseToggle(down, button) {
+  if (!isToolEnabled || isSpecialPulling) return
+  if (!button) {
+    robot.mouseToggle(down)
+  } else {
+    robot.mouseToggle(down, button)
+  }
+}
+
+function scrollMouse(x, y) {
+  if (!isToolEnabled || isSpecialPulling) return
+  robot.scrollMouse(x, y);
+}
+
+function keyTap(key, modifier) {
+  if (!isToolEnabled || isSpecialPulling) return
+  if (!modifier) {
+    robot.keyTap(key)
+  } else {
+    robot.keyTap(key, modifier)
+  }
+}
