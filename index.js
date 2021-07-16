@@ -13,6 +13,7 @@ const MOUSE_SPEED = 100.0
 const PUSH_THRESHOLD = 0.3
 const PUSH_RELEASE_THRESHOLD = 0.2
 const PUSH_STABLE_DURATION = 200
+const LONG_PUSH_DURATION = 600
 
 const PULL_THRESHOLD = -0.9
 const PULL_RELEASE_THRESHOLD = -0.6
@@ -23,15 +24,6 @@ const SLIDE_HOLD_DURATION = 200
 
 const SCROLL_THRESHOLD = 0.2
 const SCROLL_SPEED = 200.0
-
-const spaceMouses = devices.filter(d=>d.productId === PRODUCT_ID)
-
-const decimal = { x: 0.0, y: 0.0 }
-
-let isPushDown = false
-let isStable = false
-
-let isPullUp = false
 
 const slideStatus = {
   left: {
@@ -101,6 +93,19 @@ const slideKeys = {
   },
 }
 
+const spaceMouses = devices.filter(d=>d.productId === PRODUCT_ID)
+
+const mouseDecimal = { x: 0.0, y: 0.0 }
+const scrollDecimal = { x: 0.0, y: 0.0 }
+
+let isPushDown = false
+let isStable = false
+let longPushTimeout = null
+let isShortPush = false
+let isMoved = false
+
+let isPullUp = false
+
 let isLeftBurronDown = false
 let isRightBurronDown = false
 
@@ -158,15 +163,28 @@ spaceMouses.forEach((spaceMouse) => {
 
       isSliding = Array('left', 'top', 'right', 'bottom').some((dir) => slideStatus[dir].isSliding)
 
-      // Scroll
+      // Twist
       if (!isMouseMoving) {
         isScrolling = Math.abs(direction.yaw) >= SCROLL_THRESHOLD && !isSliding
         if (isScrolling) {
-          scrollMouse(0, -Math.pow(direction.yaw, 3) * SCROLL_SPEED);
+          const scroll = {
+            x: 0,
+            y: -Math.pow(direction.yaw, 3) * SCROLL_SPEED,
+          }
+          const integer = { x: 0, y: 0 }
+          Array('x', 'y').forEach((v) => {
+            scrollDecimal[v] += scroll[v] % 1.0
+            integer[v] = scrollDecimal[v] - scrollDecimal[v] % 1.0
+            scrollDecimal[v] = scrollDecimal[v] % 1.0
+          })
+          scrollMouse(
+            integer.x,
+            scroll.y + integer.y
+          );
         }
       }
 
-      // Move
+      // Tilt
       if (!isStable && !isScrolling && !isSliding) {
         const move = {
           x: -Math.pow(direction.role, 3) * MOUSE_SPEED,
@@ -174,9 +192,9 @@ spaceMouses.forEach((spaceMouse) => {
         }
         const integer = { x: 0, y: 0 }
         Array('x', 'y').forEach((v) => {
-          decimal[v] += move[v] % 1.0
-          integer[v] = decimal[v] - decimal[v] % 1.0
-          decimal[v] = decimal[v] % 1.0
+          mouseDecimal[v] += move[v] % 1.0
+          integer[v] = mouseDecimal[v] - mouseDecimal[v] % 1.0
+          mouseDecimal[v] = mouseDecimal[v] % 1.0
         })
         moveMouse(
           move.x + integer.x,
@@ -187,24 +205,42 @@ spaceMouses.forEach((spaceMouse) => {
         // console.log(`x: ${move.x}, y: ${move.y}`)
       }
 
-      // Left click
+      // Push
       if (isPushDown) {
         if (direction.z <= PUSH_RELEASE_THRESHOLD) {
-          mouseToggle('up')
+          clearTimeout(longPushTimeout)
+          if (isShortPush) {
+            mouseClick()
+          }
+          if (isMoved) {
+            mouseToggle('up', 'left')
+          }
           isPushDown = false
+          isShortPush = false
           // console.log('left up')
         }
       } else {
         if (direction.z >= PUSH_THRESHOLD && !isScrolling && !isSliding) {
-          mouseToggle('down')
           isPushDown = true
           isStable = true
           setTimeout(() => isStable = false, PUSH_STABLE_DURATION)
+          isShortPush = true
+          longPushTimeout = setTimeout(() => {
+            isShortPush = false
+            mouseClick('right')
+          }, LONG_PUSH_DURATION)
+          isMoved = false
           // console.log('left down')
         }
       }
+      if (isShortPush && isMouseMoving) {
+        clearTimeout(longPushTimeout)
+        isShortPush = false
+        isMoved = true
+        mouseToggle('down', 'left')
+      }
 
-      // F5
+      // Pull
       if (isPullUp) {
         if (direction.z >= PULL_RELEASE_THRESHOLD) {
           keyTap('f5')
@@ -280,6 +316,15 @@ function mouseToggle(down, button) {
     robot.mouseToggle(down)
   } else {
     robot.mouseToggle(down, button)
+  }
+}
+
+function mouseClick(button) {
+  if (!isToolEnabled || isSpecialPulling) return
+  if (!button) {
+    robot.mouseClick()
+  } else {
+    robot.mouseClick(button)
   }
 }
 
